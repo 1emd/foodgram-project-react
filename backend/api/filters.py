@@ -1,25 +1,26 @@
-from django_filters.rest_framework import CharFilter, FilterSet, BooleanFilter
 from django.db.models import Q
+from django_filters.rest_framework import BooleanFilter, CharFilter, FilterSet
+
 from recipes.models import Ingredient, Recipe
 
 
 class IngredientFilter(FilterSet):
-    name = CharFilter(lookup_expr='icontains')  # lookup_expr='startswith'
+    name = CharFilter(lookup_expr='icontains')
 
     class Meta:
         model = Ingredient
-        fields = ['name']
+        fields = ('name',)
 
 
 class RecipeFilter(FilterSet):
-    is_favourite = BooleanFilter(
-        field_name='favourite__user',
-        method='filter_by_favourite',
+    is_favorite = BooleanFilter(
+        field_name='favorite__user',
+        method='filter_by_favorite',
         label='Избранное'
     )
-    is_in_shopping_list = BooleanFilter(
-        field_name='shoppinglist__user',
-        method='filter_by_shopping_list',
+    is_in_shopping_cart = BooleanFilter(
+        field_name='shoppingcart__user',
+        method='filter_by_shopping_cart',
         label='Список покупок'
     )
     author = CharFilter(
@@ -34,11 +35,11 @@ class RecipeFilter(FilterSet):
 
     class Meta:
         model = Recipe
-        fields = ['is_favourite', 'is_in_shopping_list', 'author', 'tags']
+        fields = ('is_favorite', 'is_in_shopping_cart', 'author', 'tags',)
 
-    def filter_by_favourite(self, queryset, name, value):
+    def filter_by_favorite(self, queryset, name, value):
         if value:
-            return queryset.filter(favourite__user=self.request.user)
+            return queryset.filter(favorite__user=self.request.user)
         return queryset
 
     def filter_by_shopping_cart(self, queryset, name, value):

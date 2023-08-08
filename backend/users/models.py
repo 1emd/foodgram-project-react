@@ -30,14 +30,16 @@ class User(AbstractUser):
         max_length=MAX_LENGTH_LAST_NAME,
         verbose_name='Фамилия',
     )
-    groups = models.ManyToManyField(
-        'auth.Group',
-        related_name='custom_user_groups',
-    )
-    user_permissions = models.ManyToManyField(
-        'auth.Permission',
-        related_name='custom_user_user_permissions',
-    )
+    # groups = models.ManyToManyField(
+    #     'auth.Group',
+    #     related_name='custom_user_groups',
+    #     blank=True,
+    # )
+    # user_permissions = models.ManyToManyField(
+    #     'auth.Permission',
+    #     related_name='custom_user_user_permissions',
+    #     blank=True,
+    # )
 
     class Meta:
         ordering = ['-id']
@@ -58,7 +60,7 @@ class Subscription(models.Model):
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='author',
+        related_name='subscribed_by',
         verbose_name='Автор',
     )
 
