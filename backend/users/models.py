@@ -2,10 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
 
-MAX_LENGTH_EMAIL = 254
-MAX_LENGTH_USERNAME = 150
-MAX_LENGTH_FIRST_NAME = 150
-MAX_LENGTH_LAST_NAME = 150
+from users.constants import MAX_LENGTH, MAX_LENGTH_EMAIL
 
 
 class User(AbstractUser):
@@ -17,32 +14,26 @@ class User(AbstractUser):
         verbose_name='Email',
     )
     username = models.CharField(
-        max_length=MAX_LENGTH_USERNAME,
+        max_length=MAX_LENGTH,
         unique=True,
         validators=[UnicodeUsernameValidator(), ],
         verbose_name='Логин',
     )
     first_name = models.CharField(
-        max_length=MAX_LENGTH_FIRST_NAME,
+        max_length=MAX_LENGTH,
         verbose_name='Имя',
     )
     last_name = models.CharField(
-        max_length=MAX_LENGTH_LAST_NAME,
+        max_length=MAX_LENGTH,
         verbose_name='Фамилия',
     )
-    # groups = models.ManyToManyField(
-    #     'auth.Group',
-    #     related_name='custom_user_groups',
-    #     blank=True,
-    # )
-    # user_permissions = models.ManyToManyField(
-    #     'auth.Permission',
-    #     related_name='custom_user_user_permissions',
-    #     blank=True,
-    # )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата создания'
+    )
 
     class Meta:
-        ordering = ['-id']
+        ordering = ('-created_at', )
         verbose_name = 'Пользователь'
         verbose_name_plural = 'Пользователи'
 
@@ -63,15 +54,23 @@ class Subscription(models.Model):
         related_name='subscribed_by',
         verbose_name='Автор',
     )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Дата подписки'
+    )
 
     class Meta:
-        ordering = ['-id']
+        ordering = ('-created_at', )
         verbose_name = 'Подписка'
         verbose_name_plural = 'Подписки'
         constraints = (
             models.UniqueConstraint(
                 fields=('user', 'author'),
                 name='unique_user_author'
+            ),
+            models.CheckConstraint(
+                check=~models.Q(user=models.F('author')),
+                name='prevent_self_subscription'
             ),
         )
 

@@ -1,22 +1,19 @@
-import base64
-
-from django.core.files.base import ContentFile
 from django.core.validators import MinValueValidator
 from django.shortcuts import get_object_or_404
+from drf_extra_fields.fields import Base64ImageField
 from rest_framework.exceptions import ValidationError
 from rest_framework.relations import PrimaryKeyRelatedField
-from rest_framework.serializers import (CharField, ImageField, IntegerField,
+from rest_framework.serializers import (CharField, IntegerField,
                                         ModelSerializer, ReadOnlyField,
                                         SerializerMethodField)
 
+from api.constants import (DUPLICATE_INGREDIENT_MESSAGE,
+                           DUPLICATE_TAGS_MESSAGE, INVALID_AMOUNT_MESSAGE,
+                           INVALID_COOKING_TIME_MESSAGE,
+                           MISSING_INGREDIENT_MESSAGE, MISSING_TAG_MESSAGE)
 from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
-                            ShoppingList, Tag)
+                            ShoppingCart, Tag)
 from users.models import Subscription, User
-
-MISSING_TAG_MESSAGE = 'Пожалуйста, добавьте хотя бы один тег.'
-MISSING_INGREDIENT_MESSAGE = 'Пожалуйста, добавьте хотя бы один ингредиент.'
-DUPLICATE_INGREDIENT_MESSAGE = ('Рецепт не может иметь '
-                                'повторяющиеся ингредиенты.')
 
 
 class CustomUserCreateSerializer(ModelSerializer):
@@ -40,10 +37,11 @@ class CustomUserSerializer(ModelSerializer):
                   'last_name', 'is_subscribed')
 
     def get_is_subscribed(self, obj):
-        user = self.context['request'].user
-        if user.is_anonymous:
-            return False
-        return Subscription.objects.filter(user=user, author=obj).exists()
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Subscription.objects.filter(
+                user=request.user, author=obj).exists()
+        return False
 
 
 class RecipeMinifiedSerializer(ModelSerializer):
@@ -91,25 +89,14 @@ class IngredientSerializer(ModelSerializer):
 
     class Meta:
         model = Ingredient
-        fields = '__all__'
+        fields = ('id', 'name', 'measurement_unit',)
 
 
 class TagSerializer(ModelSerializer):
 
     class Meta:
         model = Tag
-        fields = '__all__'
-
-
-class Base64ImageField(ImageField):
-    def to_internal_value(self, data):
-        if isinstance(data, str) and data.startswith('data:image'):
-            format, imgstr = data.split(';base64,')
-            ext = format.split('/')[-1]
-
-            data = ContentFile(base64.b64decode(imgstr), name='temp.' + ext)
-
-        return super().to_internal_value(data)
+        fields = ('id', 'name', 'color', 'slug',)
 
 
 class RecipeIngredientSerializer(ModelSerializer):
@@ -118,11 +105,15 @@ class RecipeIngredientSerializer(ModelSerializer):
         source='ingredient.name')
     measurement_unit = ReadOnlyField(
         source='ingredient.measurement_unit')
+    amount = IntegerField(
+        validators=[MinValueValidator(
+            1, message=INVALID_AMOUNT_MESSAGE)],
+    )
 
     class Meta:
         model = RecipeIngredient
         fields = (
-            'id', 'name', 'amount', 'measurement_unit',)
+            'id', 'name', 'measurement_unit', 'amount',)
 
 
 class RecipeSerializer(ModelSerializer):
@@ -151,7 +142,7 @@ class RecipeSerializer(ModelSerializer):
 
     def get_is_in_shopping_cart(self, obj):
         user = self.context.get('request').user
-        return not user.is_anonymous and ShoppingList.objects.filter(
+        return not user.is_anonymous and ShoppingCart.objects.filter(
             user=user, recipe=obj).exists()
 
 
@@ -160,7 +151,9 @@ class CreateUpdateRecipeSerializer(ModelSerializer):
     tags = PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True)
     author = CustomUserSerializer(read_only=True)
     image = Base64ImageField()
-    cooking_time = IntegerField(validators=[MinValueValidator(1)])
+    cooking_time = IntegerField(
+        validators=[MinValueValidator(
+            1, message=INVALID_COOKING_TIME_MESSAGE)])
 
     class Meta:
         model = Recipe
@@ -172,6 +165,8 @@ class CreateUpdateRecipeSerializer(ModelSerializer):
     def validate_tags(self, value):
         if not value:
             raise ValidationError(MISSING_TAG_MESSAGE)
+        if len(set(value)) != len(value):
+            raise ValidationError(DUPLICATE_TAGS_MESSAGE)
         return value
 
     def validate_ingredients(self, value):

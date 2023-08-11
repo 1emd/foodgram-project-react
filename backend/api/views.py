@@ -9,6 +9,20 @@ from rest_framework.response import Response
 from rest_framework.viewsets import (GenericViewSet, ModelViewSet,
                                      ReadOnlyModelViewSet)
 
+from api.constants import (ALREADY_SUBSCRIBED_ERROR,
+                           INCORRECT_CURRENT_PASSWORD_ERROR,
+                           METHOD_NOT_ALLOWED_ERROR, PASSWORD_CHANGE_SUCCESS,
+                           RECIPE_ADDED_TO_FAVORITES,
+                           RECIPE_ADDED_TO_SHOPPING_LIST,
+                           RECIPE_ALREADY_IN_FAVORITES,
+                           RECIPE_ALREADY_IN_SHOPPING_LIST,
+                           RECIPE_NOT_IN_FAVORITES,
+                           RECIPE_NOT_IN_SHOPPING_LIST,
+                           RECIPE_REMOVED_FROM_FAVORITES,
+                           RECIPE_REMOVED_FROM_SHOPPING_LIST,
+                           SELF_SUBSCRIBE_UNSUBSCRIBE_ERROR,
+                           SUBSCRIPTION_NOT_FOUND_ERROR, UNAUTHORIZED_USER,
+                           USER_UNAUTHORIZED_ERROR)
 from api.filters import IngredientFilter, RecipeFilter
 from api.pagination import CustomPagination
 from api.permissions import (IsAuthorOrAdminOrReadOnly,
@@ -17,28 +31,9 @@ from api.serializers import (CreateUpdateRecipeSerializer,
                              CustomUserCreateSerializer, CustomUserSerializer,
                              IngredientSerializer, RecipeSerializer,
                              SubscriptionSerializer, TagSerializer)
-from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
-                            ShoppingList, Tag)
+from api.utils import process_shopping_cart_items
+from recipes.models import Favorite, Ingredient, Recipe, ShoppingCart, Tag
 from users.models import Subscription, User
-
-RECIPE_ADDED_TO_FAVORITES = 'Рецепт добавлен в избранное.'
-RECIPE_ALREADY_IN_FAVORITES = 'Рецепт уже в избранном.'
-RECIPE_REMOVED_FROM_FAVORITES = 'Рецепт удален из избранного.'
-RECIPE_NOT_IN_FAVORITES = 'Рецепта нет в избранном.'
-RECIPE_ADDED_TO_SHOPPING_LIST = 'Рецепт добавлен в список покупок.'
-RECIPE_ALREADY_IN_SHOPPING_LIST = 'Рецепт уже в списке покупок.'
-RECIPE_REMOVED_FROM_SHOPPING_LIST = 'Рецепт удален из списка покупок.'
-RECIPE_NOT_IN_SHOPPING_LIST = 'Рецепта нет в списке покупок.'
-UNAUTHORIZED_USER = 'Пользователь не авторизован.'
-SELF_SUBSCRIBE_UNSUBSCRIBE_ERROR = ('Невозможно подписаться или '
-                                    'отписаться от самого себя.')
-ALREADY_SUBSCRIBED_ERROR = 'Вы уже подписаны на этого автора.'
-SUBSCRIPTION_NOT_FOUND_ERROR = ('Вы не подписаны на этого автора, '
-                                'либо подписка уже удалена.')
-METHOD_NOT_ALLOWED_ERROR = 'Метод не разрешен для данного запроса.'
-USER_UNAUTHORIZED_ERROR = 'Пользователь не авторизован.'
-INCORRECT_CURRENT_PASSWORD_ERROR = 'Текущий пароль неверен.'
-PASSWORD_CHANGE_SUCCESS = 'Пароль успешно изменен.'
 
 
 class IngredientViewSet(ReadOnlyModelViewSet):
@@ -76,19 +71,21 @@ class RecipeViewSet(ModelViewSet):
             permission_classes=[IsRecipeOwnerOrAuthenticated])
     def favorite(self, request, pk=None):
         recipe = self.get_object()
-        user = request.user
 
         if request.method == 'POST':
-            if not Favorite.objects.filter(user=user, recipe=recipe).exists():
-                Favorite.objects.create(user=user, recipe=recipe)
+            if not Favorite.objects.filter(
+                    user=request.user, recipe=recipe).exists():
+                Favorite.objects.create(user=request.user, recipe=recipe)
                 return Response({'message': RECIPE_ADDED_TO_FAVORITES},
                                 status=status.HTTP_200_OK)
             return Response({'message': RECIPE_ALREADY_IN_FAVORITES},
                             status=status.HTTP_400_BAD_REQUEST)
 
         if request.method == 'DELETE':
-            if Favorite.objects.filter(user=user, recipe=recipe).exists():
-                Favorite.objects.filter(user=user, recipe=recipe).delete()
+            if Favorite.objects.filter(
+                    user=request.user, recipe=recipe).exists():
+                Favorite.objects.filter(
+                    user=request.user, recipe=recipe).delete()
                 return Response({'message': RECIPE_REMOVED_FROM_FAVORITES},
                                 status=status.HTTP_200_OK)
             return Response({'message': RECIPE_NOT_IN_FAVORITES},
@@ -100,12 +97,11 @@ class RecipeViewSet(ModelViewSet):
             permission_classes=[IsAuthenticated])
     def shopping_cart(self, request, pk=None):
         recipe = self.get_object()
-        user = request.user
 
         if request.method == 'POST':
-            if not ShoppingList.objects.filter(
-                    user=user, recipe=recipe).exists():
-                ShoppingList.objects.create(user=user, recipe=recipe)
+            if not ShoppingCart.objects.filter(
+                    user=request.user, recipe=recipe).exists():
+                ShoppingCart.objects.create(user=request.user, recipe=recipe)
                 return Response(
                     {'message': RECIPE_ADDED_TO_SHOPPING_LIST},
                     status=status.HTTP_200_OK
@@ -116,8 +112,10 @@ class RecipeViewSet(ModelViewSet):
             )
 
         if request.method == 'DELETE':
-            if ShoppingList.objects.filter(user=user, recipe=recipe).exists():
-                ShoppingList.objects.filter(user=user, recipe=recipe).delete()
+            if ShoppingCart.objects.filter(
+                    user=request.user, recipe=recipe).exists():
+                ShoppingCart.objects.filter(
+                    user=request.user, recipe=recipe).delete()
                 return Response(
                     {'message': RECIPE_REMOVED_FROM_SHOPPING_LIST},
                     status=status.HTTP_200_OK
@@ -132,21 +130,9 @@ class RecipeViewSet(ModelViewSet):
     @action(detail=False, methods=['get'],
             permission_classes=[IsAuthenticated])
     def download_shopping_cart(self, request):
-        user = request.user
-        shopping_cart_items = ShoppingList.objects.filter(user=user)
+        shopping_cart_items = ShoppingCart.objects.filter(user=request.user)
 
-        buy_list = {}
-        for item in shopping_cart_items:
-            ingredients = RecipeIngredient.objects.filter(recipe=item.recipe)
-            for ingredient in ingredients:
-                key = (
-                    f'{ingredient.ingredient.name} '
-                    f'({ingredient.ingredient.measurement_unit})'
-                )
-                if key in buy_list:
-                    buy_list[key] += ingredient.amount
-                else:
-                    buy_list[key] = ingredient.amount
+        buy_list = process_shopping_cart_items(shopping_cart_items)
 
         content = 'Shopping Cart:\n\n'
         for ingredient, amount in buy_list.items():
@@ -186,8 +172,7 @@ class CustomUserViewSet(GenericViewSet):
         permission_classes=(IsAuthenticated, )
     )
     def subscriptions(self, request):
-        user = request.user
-        user_subscriptions = Subscription.objects.filter(user=user)
+        user_subscriptions = Subscription.objects.filter(user=request.user)
         author_ids = user_subscriptions.values_list('author_id', flat=True)
         queryset = User.objects.filter(pk__in=author_ids)
         paginated_queryset = self.paginate_queryset(queryset)
@@ -218,22 +203,21 @@ class CustomUserViewSet(GenericViewSet):
         permission_classes=[IsAuthenticated]
     )
     def subscribe(self, request, pk=None):
-        user = request.user
         author = get_object_or_404(User, pk=pk)
 
-        if user == author:
+        if request.user == author:
             return Response({'message': SELF_SUBSCRIBE_UNSUBSCRIBE_ERROR},
                             status=status.HTTP_400_BAD_REQUEST)
 
         subscription_exists = Subscription.objects.filter(
-            user=user, author=author).exists()
+            user=request.user, author=author).exists()
 
         if request.method == 'POST':
             if subscription_exists:
                 return Response({'message': ALREADY_SUBSCRIBED_ERROR},
                                 status=status.HTTP_400_BAD_REQUEST)
 
-            Subscription.objects.create(user=user, author=author)
+            Subscription.objects.create(user=request.user, author=author)
             serializer = SubscriptionSerializer(
                 author, context={'request': request})
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -243,7 +227,8 @@ class CustomUserViewSet(GenericViewSet):
                 return Response({'message': SUBSCRIPTION_NOT_FOUND_ERROR},
                                 status=status.HTTP_400_BAD_REQUEST)
 
-            Subscription.objects.filter(user=user, author=author).delete()
+            Subscription.objects.filter(
+                user=request.user, author=author).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         return Response({'message': METHOD_NOT_ALLOWED_ERROR},

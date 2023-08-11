@@ -1,7 +1,8 @@
-from django.db.models import Q
-from django_filters.rest_framework import BooleanFilter, CharFilter, FilterSet
+from django_filters.rest_framework import (BooleanFilter, CharFilter,
+                                           FilterSet,
+                                           ModelMultipleChoiceFilter)
 
-from recipes.models import Ingredient, Recipe
+from recipes.models import Ingredient, Recipe, Tag
 
 
 class IngredientFilter(FilterSet):
@@ -19,38 +20,30 @@ class RecipeFilter(FilterSet):
         label='Избранное'
     )
     is_in_shopping_cart = BooleanFilter(
-        field_name='shoppingcart__user',
+        field_name='shopping_cart__user',
         method='filter_by_shopping_cart',
         label='Список покупок'
     )
-    author = CharFilter(
-        field_name='author__username',
-        lookup_expr='iexact',
-        label='Автор'
-    )
-    tags = CharFilter(
-        method='filter_by_tags',
-        label='Теги (через запятую)'
+    tags = ModelMultipleChoiceFilter(
+        field_name='tags__slug',
+        to_field_name='slug',
+        queryset=Tag.objects.all(),
+        label='Теги'
     )
 
     class Meta:
         model = Recipe
-        fields = ('is_favorite', 'is_in_shopping_cart', 'author', 'tags',)
+        fields = ('is_favorite', 'is_in_shopping_cart',
+                  'tags', 'author__username',)
 
     def filter_by_favorite(self, queryset, name, value):
-        if value:
-            return queryset.filter(favorite__user=self.request.user)
+        user = self.request.user
+        if value and user.is_authenticated:
+            return queryset.filter(favorites__user=user)
         return queryset
 
     def filter_by_shopping_cart(self, queryset, name, value):
-        if value:
-            return queryset.filter(shoppingcart__user=self.request.user)
+        user = self.request.user
+        if value and user.is_authenticated:
+            return queryset.filter(shopping_cart__user=user)
         return queryset
-
-    def filter_by_tags(self, queryset, name, value):
-        tags = value.split(',')
-        filters = Q()
-        for tag in tags:
-            filters |= Q(tags__slug__iexact=tag.strip())
-
-        return queryset.filter(filters)
