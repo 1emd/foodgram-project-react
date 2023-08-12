@@ -193,8 +193,8 @@ class CustomUserViewSet(GenericViewSet):
         if request.user.is_authenticated:
             serializer = self.get_serializer(request.user)
             return Response(serializer.data)
-        else:
-            return Response({'detail': UNAUTHORIZED_USER}, status=401)
+
+        return Response({'detail': UNAUTHORIZED_USER}, status=401)
 
     @action(
         detail=True,
