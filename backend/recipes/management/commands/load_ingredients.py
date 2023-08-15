@@ -17,7 +17,8 @@ class Command(BaseCommand):
         with open(csv_file, 'r') as file:
             csv_reader = csv.reader(file)
             for row in csv_reader:
-                name, description = row
-                Ingredient.objects.create(name=name, description=description)
+                name, measurement_unit = row
+                Ingredient.objects.create(
+                    name=name, measurement_unit=measurement_unit)
                 self.stdout.write(self.style.SUCCESS(
                     f'Ингредиент успешно загружен: {name}'))
