@@ -4,8 +4,9 @@ django-filter==23.2
 djoser==2.1.0
 Pillow==9.1.0
 urllib3==1.26.10
-isort
 drf-extra-fields==3.6.1
 python-dotenv==1.0.0
 django-colorfield==0.9.0
-# gunicorn==20.0.4
+gunicorn==21.2.0
+psycopg2-binary==2.9.3
+isort

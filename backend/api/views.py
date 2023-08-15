@@ -147,9 +147,9 @@ class RecipeViewSet(ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        username = self.request.query_params.get('author')
-        if username:
-            queryset = queryset.filter(author__username=username)
+        author_id = self.request.query_params.get('author')
+        if author_id:
+            queryset = queryset.filter(author_id=author_id)
 
         return queryset
 
