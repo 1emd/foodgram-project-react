@@ -1,4 +1,3 @@
-# flake8: noqa
 from django.core.validators import MinValueValidator
 from django.shortcuts import get_object_or_404
 from drf_extra_fields.fields import Base64ImageField

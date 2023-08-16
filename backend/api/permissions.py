@@ -1,5 +1,4 @@
 from rest_framework import permissions
-from rest_framework.permissions import BasePermission
 
 
 class IsAuthorOrAdminOrReadOnly(permissions.BasePermission):
@@ -14,7 +13,7 @@ class IsAuthorOrAdminOrReadOnly(permissions.BasePermission):
                 or request.user.is_staff)
 
 
-class IsRecipeOwnerOrAuthenticated(BasePermission):
+class IsRecipeOwnerOrAuthenticated(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.user.is_authenticated:
             return True

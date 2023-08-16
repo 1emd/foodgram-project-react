@@ -22,7 +22,7 @@ services:
   frontend:
     image: 1emd/foodgram_frontend
     volumes:
-      - frontend_value:/app/build/
+      - frontend_volume:/app/build/
     depends_on:
       - db
 
@@ -33,14 +33,14 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
       - ./docs/:/usr/share/nginx/html/api/docs/
-      - frontend_value:/usr/share/nginx/html/
       - static_value:/var/html/static/
+      - frontend_volume:/usr/share/nginx/html/
       - media_value:/var/html/media/
     depends_on:
-      - backend
       - frontend
+      - backend
 
 volumes:
+  frontend_volume:
   static_value:
   media_value:
-  frontend_value:
