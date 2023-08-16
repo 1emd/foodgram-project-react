@@ -10,7 +10,8 @@ from rest_framework.serializers import (CharField, IntegerField,
 from api.constants import (DUPLICATE_INGREDIENT_MESSAGE,
                            DUPLICATE_TAGS_MESSAGE, INVALID_AMOUNT_MESSAGE,
                            INVALID_COOKING_TIME_MESSAGE,
-                           MISSING_INGREDIENT_MESSAGE, MISSING_TAG_MESSAGE)
+                           MISSING_INGREDIENT_MESSAGE, MISSING_TAG_MESSAGE,
+                           INVALID_NAME_MESSAGE)
 from recipes.models import (Favorite, Ingredient, Recipe, RecipeIngredient,
                             ShoppingCart, Tag)
 from users.models import Subscription, User
@@ -146,6 +147,7 @@ class RecipeSerializer(ModelSerializer):
 
 
 class CreateUpdateRecipeSerializer(ModelSerializer):
+    name = CharField()
     ingredients = RecipeIngredientSerializer(many=True)
     tags = PrimaryKeyRelatedField(queryset=Tag.objects.all(), many=True)
     author = CustomUserSerializer(read_only=True)
@@ -160,6 +162,12 @@ class CreateUpdateRecipeSerializer(ModelSerializer):
             'id', 'tags', 'author', 'ingredients',
             'name', 'image', 'text', 'cooking_time',
         )
+
+    def validate_name(self, value):
+        if value.isdigit() or all(
+                char in '/!*@#$%^&*()_+={}[]|:;"<>,.?-' for char in value):
+            raise ValidationError(INVALID_NAME_MESSAGE)
+        return value
 
     def validate_tags(self, value):
         if not value:
